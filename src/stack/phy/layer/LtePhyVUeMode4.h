@@ -25,6 +25,7 @@ class LtePhyVUeMode4 : public LtePhyUeD2D
     double d2dTxPower_;
 
     bool adjacencyPSCCHPSSCH_;
+    bool randomAccess_;
     int pStep_;
     int numSubchannels_;
     int subchannelSize_ ;
@@ -112,6 +113,8 @@ class LtePhyVUeMode4 : public LtePhyUeD2D
 
     // Compute Candidate Single Subframe Resources which the MAC layer can use for transmission
     virtual void computeCSRs(LteMode4SchedulingGrant* &grant);
+
+    virtual void computeRandomCSR(LteMode4SchedulingGrant* &grant);
 
     virtual void updateSubframe();
 

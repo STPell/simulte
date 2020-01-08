@@ -42,6 +42,7 @@ void LtePhyVUeMode4::initialize(int stage)
     if (stage == inet::INITSTAGE_LOCAL)
     {
         adjacencyPSCCHPSSCH_ = par("adjacencyPSCCHPSSCH");
+        randomAccess_ = par("randomAccess");
         pStep_ = par("pStep");
         selectionWindowStartingSubframe_ = par("selectionWindowStartingSubframe");
         numSubchannels_ = par("numSubchannels");
@@ -308,7 +309,11 @@ void LtePhyVUeMode4::handleUpperMessage(cMessage* msg)
         LteMode4SchedulingGrant* grant = check_and_cast<LteMode4SchedulingGrant*>(msg);
         if (grant->getTotalGrantedBlocks() == 0){
             // Generate a vector of CSRs and send it to the MAC layer
-            computeCSRs(grant);
+            if (randomAccess_){
+                computeRandomCSR(grant);
+            } else {
+                computeCSRs(grant);
+            }
             delete lteInfo;
             delete grant;
         }
@@ -463,6 +468,36 @@ RbMap LtePhyVUeMode4::sendSciMessage(cMessage* msg, UserControlInfo* lteInfo)
     delete lteInfo;
 
     return (rbMap);
+}
+
+void LtePhyVUeMode4::computeRandomCSR(LteMode4SchedulingGrant* &grant) {
+    EV << NOW << " LtePhyVUeMode4::computeCSRs - going through sensing window to compute CSRS..." << endl;
+    // Determine the total number of possible CSRs
+    if (grant->getMaximumLatency() > 100) {
+        grant->setMaximumLatency(100);
+    }
+
+    EV << NOW
+       << " LtePhyVUeMode4::computeCSRs - eliminating CSRS which were not sensed in sensing window and those above the threshold ..."
+       << endl;
+    unsigned int grantLength = grant->getNumSubchannels();
+    int maxLatency = grant->getMaximumLatency();
+
+    // Start and end of Selection Window.
+    int minSelectionIndex = (10 * pStep_) + selectionWindowStartingSubframe_;
+    int maxSelectionIndex = (10 * pStep_) + maxLatency;
+
+    int random_subframe = intuniform(minSelectionIndex, maxSelectionIndex, 1);
+    int random_subchannel = intuniform(0, numSubchannels_-grantLength, 1);
+
+    std::vector<std::tuple<double, int, int>> randomCSR;
+    randomCSR.push_back(std::make_tuple(0.0, random_subframe, random_subchannel));
+
+    // Send the packet up to the MAC layer where it will choose the CSR and the retransmission if that is specified
+    // Need to generate the message that is to be sent to the upper layers.
+    SpsCandidateResources* candidateResourcesMessage = new SpsCandidateResources("CSRs");
+    candidateResourcesMessage->setCSRs(randomCSR);
+    send(candidateResourcesMessage, upperGateOut_);
 }
 
 void LtePhyVUeMode4::computeCSRs(LteMode4SchedulingGrant* &grant) {
@@ -873,7 +908,7 @@ std::vector<std::tuple<double, int, int>> LtePhyVUeMode4::selectBestRSSIs(std::u
     std::random_shuffle (orderedCSRs.begin(), orderedCSRs.end());
 
     std::sort(begin(orderedCSRs), end(orderedCSRs), [](const std::tuple<double, int, int> &t1, const std::tuple<double, int, int> &t2) {
-        return get<0>(t1) < get<0>(t2); // or use a custom compare function
+        return get<0>(t1) < get<0>(t2);
     });
 
     int minSize = std::round(totalPossibleCSRs * .2);
