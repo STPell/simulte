@@ -18,7 +18,12 @@ LteHarqBufferRxD2D::LteHarqBufferRxD2D(unsigned int num, LteMacBase *owner, MacN
 {
     macOwner_ = owner;
     nodeId_ = nodeId;
-    macUe_ = check_and_cast<LteMacBase*>(getMacByMacNodeId(nodeId_));
+    if (!isMulticast) {
+        //If this is a multicast transmission, we can ignore the transmitting
+        //MAC module as it is only needed to emit delay statistics in the
+        //non-D2D mode.
+        macUe_ = check_and_cast<LteMacBase*>(getMacByMacNodeId(nodeId_));
+    }
     numHarqProcesses_ = num;
     processes_.resize(numHarqProcesses_);
     totalRcvdBytes_ = 0;
